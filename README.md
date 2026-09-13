@@ -92,7 +92,7 @@ dotnet publish Jellyfin.Plugin.ArrDashboard/Jellyfin.Plugin.ArrDashboard.csproj 
 
 ## Installing
 
-1. On the Jellyfin server, create a folder `plugins/ArrDashboard_1.0.0.0/` inside the
+1. On the Jellyfin server, create a folder `plugins/ArrDashboard_1.0.0.1/` inside the
    Jellyfin **data** directory:
    - Windows: `%ProgramData%\Jellyfin\Server\plugins\`
    - Linux (native): `/var/lib/jellyfin/plugins/`
@@ -100,7 +100,24 @@ dotnet publish Jellyfin.Plugin.ArrDashboard/Jellyfin.Plugin.ArrDashboard.csproj 
 2. Copy `Jellyfin.Plugin.ArrDashboard.dll` from `out/` into that folder.
 3. Restart Jellyfin.
 4. Go to **Dashboard → Plugins → Arr Dashboard** and add your servers.
-5. Open **Arr Dashboard** from the main menu.
+5. Open the dashboard from the link at the top of that settings page, or go
+   straight to `http://<your-server>/web/#/configurationpage?name=arrdashboard`.
+
+### Opening the dashboard
+
+Jellyfin's web client dropped main-menu entries for plugin pages after 10.8, so the
+dashboard is not in the sidebar and cannot be put there from a plugin. It lives at:
+
+```
+http://<your-server>/web/#/configurationpage?name=arrdashboard
+```
+
+Worth bookmarking. The settings page links to it, and the dashboard links back.
+
+Plugin pages are served under the admin section of the web client, so only Jellyfin
+administrators can open them, whatever *Let non-administrators open the dashboard* is
+set to — that setting governs the `/ArrDashboard/*` API only, which matters if you
+build your own front end against it.
 
 ### Configuring an instance
 
@@ -120,6 +137,23 @@ The Jellyfin server, not your browser, is what must be able to reach these URLs.
   certificates. Use `http://` on the LAN or a properly trusted certificate.
 - Sonarr/Radarr **v3** API only (Sonarr v3+/v4, Radarr v3+). Sonarr v2 is not supported.
 - Episode runtimes fall back to the series runtime when Sonarr does not supply one.
+- Plugin pages are admin-only in the 10.11 web client; see
+  [Opening the dashboard](#opening-the-dashboard).
+
+## Troubleshooting
+
+- **The plugin's Settings button opens the dashboard instead of the settings form.**
+  Fixed in 1.0.0.1. The web client picks a plugin's settings page with
+  `findBestConfigurationPage()`, which prefers any page flagged `EnableInMainMenu`;
+  the dashboard page carried that flag, so it won. The flag no longer does anything
+  useful, so it is gone.
+- **The page loads but stays empty.** Open the browser console. Failures now show as a
+  banner on the page with the HTTP status; anything server-side is logged by Jellyfin
+  under `[ArrDashboard]`.
+- **Errors in the Jellyfin log about `/Items/<guid>/Images/Primary`.** Those come from
+  Jellyfin fetching artwork for your own library items from a metadata provider, not
+  from this plugin. Every request this plugin makes is logged with an `[ArrDashboard]`
+  prefix and every route it serves begins with `/ArrDashboard`.
 
 ## Adding download clients
 
