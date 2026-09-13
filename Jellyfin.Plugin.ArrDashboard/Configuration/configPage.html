@@ -11,6 +11,15 @@
             <form id="ArrDashboardConfigForm">
 
                 <div class="verticalSection">
+                    <p class="fieldDescription">
+                        The dashboard itself lives at
+                        <a class="arrConfigLink" href="#/configurationpage?name=arrdashboard">Arr Dashboard</a>.
+                        Bookmark that link - Jellyfin no longer lists plugin pages in the main menu.
+                    </p>
+                    <div id="arrConfigError" class="arrConfigError" hidden></div>
+                </div>
+
+                <div class="verticalSection">
                     <h2 class="sectionTitle">Sonarr</h2>
                     <p class="fieldDescription">
                         Add one entry per Sonarr server. The API key is in Sonarr under
@@ -128,6 +137,18 @@
             min-height: 1.2em;
         }
 
+        .arrConfigLink {
+            color: #00a4dc;
+            text-decoration: underline;
+        }
+
+        .arrConfigError {
+            padding: 0.75em 1em;
+            margin-bottom: 1em;
+            border-left: 3px solid #f44336;
+            background: rgba(244, 67, 54, 0.12);
+        }
+
         .arrTestOk { color: #4caf50; }
 
         .arrTestFail { color: #f44336; }
@@ -144,6 +165,21 @@
                     .replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&#39;');
+            }
+
+            // Turns an ApiClient/XHR rejection into something readable.
+            function describe(err) {
+                if (!err) {
+                    return 'The request failed. Check the browser console and the Jellyfin log.';
+                }
+
+                if (err.status) {
+                    return 'Jellyfin returned HTTP ' + err.status
+                        + (err.statusText ? ' ' + err.statusText : '')
+                        + '. Check the Jellyfin log for details.';
+                }
+
+                return err.message || String(err);
             }
 
             function newId() {
@@ -238,6 +274,19 @@
                 });
             }
 
+            function showError(page, err) {
+                var banner = page.querySelector('#arrConfigError');
+                banner.textContent = describe(err);
+                banner.hidden = false;
+                console.error('[ArrDashboard]', err);
+            }
+
+            function clearError(page) {
+                var banner = page.querySelector('#arrConfigError');
+                banner.textContent = '';
+                banner.hidden = true;
+            }
+
             function load(page) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(pluginId).then(function (config) {
@@ -252,13 +301,18 @@
                     page.querySelector('#includeUnmonitored').checked = !!config.IncludeUnmonitored;
                     page.querySelector('#allowNonAdminAccess').checked = !!config.AllowNonAdminAccess;
 
+                    clearError(page);
+                }).catch(function (err) {
+                    // Without this the spinner never goes away and the page looks hung.
+                    showError(page, err);
+                }).then(function () {
                     Dashboard.hideLoadingMsg();
                 });
             }
 
             function save(page) {
                 Dashboard.showLoadingMsg();
-                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                return ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     config.SonarrInstances = readList(page, 'sonarr');
                     config.RadarrInstances = readList(page, 'radarr');
                     config.CacheSeconds = parseInt(page.querySelector('#cacheSeconds').value, 10) || 0;
@@ -269,13 +323,21 @@
                     config.IncludeUnmonitored = page.querySelector('#includeUnmonitored').checked;
                     config.AllowNonAdminAccess = page.querySelector('#allowNonAdminAccess').checked;
 
-                    ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                    return ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                        clearError(page);
                         Dashboard.processPluginConfigurationUpdateResult(result);
                     });
+                }).catch(function (err) {
+                    Dashboard.hideLoadingMsg();
+                    showError(page, err);
                 });
             }
 
-            var page = document.querySelector('#ArrDashboardConfigPage');
+            // The view manager keeps a handful of previously visited views in the
+            // DOM, so an id can match a stale copy of this page. The freshly
+            // inserted view is always the last match.
+            var matches = document.querySelectorAll('#ArrDashboardConfigPage');
+            var page = matches[matches.length - 1];
 
             page.addEventListener('viewshow', function () {
                 load(page);

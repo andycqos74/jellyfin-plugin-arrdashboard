@@ -20,6 +20,11 @@ public class ArrDashboardPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
         Instance = this;
     }
 
+    /// <summary>
+    /// Page name of the dashboard view, i.e. #/configurationpage?name=arrdashboard.
+    /// </summary>
+    public const string DashboardPageName = "arrdashboard";
+
     public static ArrDashboardPlugin? Instance { get; private set; }
 
     public override string Name => "Arr Dashboard";
@@ -29,6 +34,19 @@ public class ArrDashboardPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     public override Guid Id => Guid.Parse("b9d3a0a1-6a7f-4a6c-9b20-8e4a2b3f1d77");
 
+    /// <summary>
+    /// Both pages are served from /web/ConfigurationPage?name=...
+    /// </summary>
+    /// <remarks>
+    /// The settings page must be listed first and no page may set
+    /// <c>EnableInMainMenu</c>. The web client picks the page behind a plugin's
+    /// "Settings" button with <c>findBestConfigurationPage()</c>, which prefers a
+    /// page flagged for the main menu and otherwise takes the first one; flagging
+    /// the dashboard therefore made Settings open the dashboard and left the
+    /// settings page unreachable. The flag buys nothing in return: main-menu
+    /// entries for plugin pages were dropped from the web client after 10.8, so
+    /// <c>EnableInMainMenu</c> and <c>MenuIcon</c> are now inert.
+    /// </remarks>
     public IEnumerable<PluginPageInfo> GetPages()
     {
         var prefix = GetType().Namespace;
@@ -44,14 +62,12 @@ public class ArrDashboardPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
         yield return new PluginPageInfo
         {
-            Name = "arrdashboard",
+            Name = DashboardPageName,
             DisplayName = "Arr Dashboard",
             EmbeddedResourcePath = string.Format(
                 CultureInfo.InvariantCulture,
                 "{0}.Web.arrdashboard.html",
-                prefix),
-            EnableInMainMenu = true,
-            MenuIcon = "calendar_month"
+                prefix)
         };
     }
 }

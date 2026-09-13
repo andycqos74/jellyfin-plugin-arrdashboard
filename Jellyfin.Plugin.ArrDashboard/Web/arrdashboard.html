@@ -13,6 +13,8 @@
                 <h1 class="arrdash-title">Arr Dashboard</h1>
                 <div class="arrdash-topbar-actions">
                     <span class="arrdash-updated" id="arrUpdated"></span>
+                    <a class="arrdash-settings-link" id="arrSettings"
+                       href="#/configurationpage?name=Arr%20Dashboard">Settings</a>
                     <button is="emby-button" type="button" class="raised" id="arrRefresh">
                         <span>Refresh</span>
                     </button>
@@ -137,6 +139,11 @@
         .arrdash-updated {
             font-size: 0.85em;
             opacity: 0.7;
+        }
+
+        .arrdash-settings-link {
+            color: var(--arr-accent);
+            text-decoration: underline;
         }
 
         .arrdash-status {
@@ -497,7 +504,11 @@
 
     <script type="text/javascript">
         (function () {
-            var page = document.querySelector('#ArrDashboardPage');
+            // The view manager keeps a handful of previously visited views in the
+            // DOM, so an id can match a stale copy of this page. The freshly
+            // inserted view is always the last match.
+            var matches = document.querySelectorAll('#ArrDashboardPage');
+            var page = matches[matches.length - 1];
 
             var state = {
                 loaded: false,
@@ -646,6 +657,21 @@
                 }
 
                 return formatDateShort(value);
+            }
+
+            // Turns an ApiClient/XHR rejection into something readable.
+            function describe(err) {
+                if (err && err.status) {
+                    return 'Jellyfin returned HTTP ' + err.status
+                        + (err.statusText ? ' ' + err.statusText : '')
+                        + '. Check the Jellyfin log for details.';
+                }
+
+                if (err && err.message) {
+                    return err.message;
+                }
+
+                return 'Could not load data from the server.';
             }
 
             function empty(message) {
@@ -1213,10 +1239,20 @@
             }
 
             function loadHeader() {
+                // An unhandled rejection here used to take the whole refresh down
+                // with it, leaving the page stuck on "Loading...".
                 return Promise.all([
                     api('ArrDashboard/Status').then(renderStatus),
                     api('ArrDashboard/Summary').then(renderSummary)
-                ]);
+                ]).catch(function (err) {
+                    console.error('[ArrDashboard]', err);
+                    renderErrors([{ Name: 'Jellyfin', Message: describe(err) }]);
+                });
+            }
+
+            function panelBody(tab) {
+                var panel = page.querySelector('.arrdash-panel[data-panel="' + tab + '"]');
+                return panel ? panel.querySelector('.arrdash-body') : null;
             }
 
             function loadTab(tab, force) {
@@ -1270,9 +1306,21 @@
                     return Promise.resolve();
                 }
 
+                // Show a spinner while the first load of a tab is in flight, and
+                // put the failure in its place if it never arrives. A later
+                // refresh that fails leaves the data already on screen alone.
+                var body = panelBody(tab);
+                var wasBlank = !!body && !body.innerHTML;
+                if (wasBlank) {
+                    body.innerHTML = spinner();
+                }
+
                 return loaders[tab]().catch(function (err) {
                     console.error('[ArrDashboard]', err);
-                    renderErrors([{ Name: 'Jellyfin', Message: 'Could not load data from the server.' }]);
+                    renderErrors([{ Name: 'Jellyfin', Message: describe(err) }]);
+                    if (wasBlank) {
+                        body.innerHTML = empty(describe(err));
+                    }
                 });
             }
 
@@ -1445,17 +1493,33 @@
                 page.querySelector(selector).addEventListener('change', renderMovies);
             });
 
-            page.addEventListener('viewshow', function () {
-                ApiClient.getCurrentUser().then(function (user) {
+            var started = false;
+
+            function start() {
+                started = true;
+                return ApiClient.getCurrentUser().then(function (user) {
                     state.isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator);
                 }).catch(function () {
                     state.isAdmin = false;
                 }).then(function () {
-                    refresh(!state.loaded);
+                    var first = !state.loaded;
                     state.loaded = true;
+                    refresh(first);
                     scheduleAutoRefresh();
                 });
-            });
+            }
+
+            page.addEventListener('viewshow', start);
+
+            // viewshow fires right after this script runs, but only when the page
+            // was reached through the view manager. Opened any other way (or if
+            // the event was missed) nothing would ever load, so start ourselves
+            // after a short grace period instead of showing an empty page.
+            setTimeout(function () {
+                if (!started) {
+                    start();
+                }
+            }, 250);
 
             page.addEventListener('viewhide', function () {
                 if (state.timer) {
