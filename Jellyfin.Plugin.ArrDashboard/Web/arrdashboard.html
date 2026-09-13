@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Arr Dashboard</title>
+</head>
+<body>
+<div id="ArrDashboardPage" data-role="page" class="page type-interior pluginConfigurationPage"
+     data-require="emby-button,emby-input,emby-select">
+    <div data-role="content">
+        <div class="content-primary arrdash">
+
+            <div class="arrdash-topbar">
+                <h1 class="arrdash-title">Arr Dashboard</h1>
+                <div class="arrdash-topbar-actions">
+                    <span class="arrdash-updated" id="arrUpdated"></span>
+                    <button is="emby-button" type="button" class="raised" id="arrRefresh">
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="arrdash-status" id="arrStatus"></div>
+            <div class="arrdash-errors" id="arrErrors"></div>
+            <div class="arrdash-stats" id="arrStats"></div>
+
+            <div class="arrdash-tabs" id="arrTabs">
+                <button type="button" class="arrdash-tab is-active" data-tab="calendar">Calendar</button>
+                <button type="button" class="arrdash-tab" data-tab="shows">Shows</button>
+                <button type="button" class="arrdash-tab" data-tab="movies">Movies</button>
+                <button type="button" class="arrdash-tab" data-tab="activity">Activity</button>
+                <button type="button" class="arrdash-tab" data-tab="missing">Missing</button>
+                <button type="button" class="arrdash-tab" data-tab="history">History</button>
+            </div>
+
+            <section class="arrdash-panel" data-panel="calendar">
+                <div class="arrdash-toolbar">
+                    <div class="arrdash-segmented" id="arrCalendarMode">
+                        <button type="button" class="is-active" data-mode="agenda">Agenda</button>
+                        <button type="button" data-mode="month">Month</button>
+                    </div>
+                    <div class="arrdash-segmented" id="arrCalendarRange">
+                        <button type="button" data-past="1" data-future="7">Week</button>
+                        <button type="button" class="is-active" data-past="7" data-future="28">Month</button>
+                        <button type="button" data-past="0" data-future="90">Upcoming</button>
+                        <button type="button" data-past="30" data-future="0">Recent</button>
+                    </div>
+                    <label class="arrdash-check">
+                        <input type="checkbox" id="arrCalendarHideHave" /> Hide items I already have
+                    </label>
+                </div>
+                <div id="arrCalendarBody" class="arrdash-body"></div>
+            </section>
+
+            <section class="arrdash-panel" data-panel="shows" hidden>
+                <div class="arrdash-toolbar">
+                    <input type="search" class="arrdash-search" id="arrShowSearch" placeholder="Filter series..." />
+                    <select class="arrdash-select" id="arrShowFilter">
+                        <option value="all">All series</option>
+                        <option value="incomplete">Incomplete</option>
+                        <option value="continuing">Continuing</option>
+                        <option value="ended">Ended</option>
+                        <option value="unmonitored">Unmonitored</option>
+                    </select>
+                    <select class="arrdash-select" id="arrShowSort">
+                        <option value="title">Sort by title</option>
+                        <option value="missing">Sort by missing</option>
+                        <option value="next">Sort by next airing</option>
+                        <option value="added">Sort by recently added</option>
+                        <option value="size">Sort by size</option>
+                    </select>
+                </div>
+                <div id="arrShowsBody" class="arrdash-body"></div>
+            </section>
+
+            <section class="arrdash-panel" data-panel="movies" hidden>
+                <div class="arrdash-toolbar">
+                    <input type="search" class="arrdash-search" id="arrMovieSearch" placeholder="Filter movies..." />
+                    <select class="arrdash-select" id="arrMovieFilter">
+                        <option value="all">All movies</option>
+                        <option value="missing">Missing</option>
+                        <option value="downloaded">Downloaded</option>
+                        <option value="unreleased">Unreleased</option>
+                        <option value="unmonitored">Unmonitored</option>
+                    </select>
+                    <select class="arrdash-select" id="arrMovieSort">
+                        <option value="title">Sort by title</option>
+                        <option value="added">Sort by recently added</option>
+                        <option value="release">Sort by release date</option>
+                        <option value="size">Sort by size</option>
+                    </select>
+                </div>
+                <div id="arrMoviesBody" class="arrdash-body"></div>
+            </section>
+
+            <section class="arrdash-panel" data-panel="activity" hidden>
+                <div id="arrQueueBody" class="arrdash-body"></div>
+            </section>
+
+            <section class="arrdash-panel" data-panel="missing" hidden>
+                <div id="arrMissingBody" class="arrdash-body"></div>
+            </section>
+
+            <section class="arrdash-panel" data-panel="history" hidden>
+                <div id="arrHistoryBody" class="arrdash-body"></div>
+            </section>
+
+        </div>
+    </div>
+
+    <style>
+        .arrdash {
+            --arr-accent: #00a4dc;
+            --arr-line: rgba(127, 127, 127, 0.28);
+            --arr-panel: rgba(127, 127, 127, 0.08);
+            --arr-ok: #4caf50;
+            --arr-warn: #ffa726;
+            --arr-bad: #ef5350;
+            --arr-muted: rgba(127, 127, 127, 0.95);
+        }
+
+        .arrdash-topbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1em;
+        }
+
+        .arrdash-title { margin: 0.2em 0; }
+
+        .arrdash-topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75em;
+        }
+
+        .arrdash-updated {
+            font-size: 0.85em;
+            opacity: 0.7;
+        }
+
+        .arrdash-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5em;
+            margin: 0.5em 0;
+        }
+
+        .arrdash-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45em;
+            padding: 0.3em 0.7em;
+            border: 1px solid var(--arr-line);
+            border-radius: 999px;
+            font-size: 0.82em;
+        }
+
+        .arrdash-dot {
+            width: 0.6em;
+            height: 0.6em;
+            border-radius: 50%;
+            background: var(--arr-bad);
+        }
+
+        .arrdash-dot.is-online { background: var(--arr-ok); }
+
+        .arrdash-errors { margin: 0.5em 0; }
+
+        .arrdash-error {
+            border-left: 3px solid var(--arr-bad);
+            background: var(--arr-panel);
+            padding: 0.6em 0.9em;
+            margin-bottom: 0.4em;
+            border-radius: 0 4px 4px 0;
+            font-size: 0.9em;
+        }
+
+        .arrdash-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(9.5em, 1fr));
+            gap: 0.6em;
+            margin: 0.8em 0 1.2em;
+        }
+
+        .arrdash-stat {
+            background: var(--arr-panel);
+            border-radius: 6px;
+            padding: 0.8em;
+        }
+
+        .arrdash-stat-value {
+            font-size: 1.5em;
+            font-weight: 600;
+            line-height: 1.1;
+        }
+
+        .arrdash-stat-label {
+            font-size: 0.78em;
+            opacity: 0.75;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-top: 0.25em;
+        }
+
+        .arrdash-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25em;
+            border-bottom: 1px solid var(--arr-line);
+            margin-bottom: 1em;
+        }
+
+        .arrdash-tab {
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: inherit;
+            cursor: pointer;
+            font-size: 1em;
+            padding: 0.6em 1em;
+        }
+
+        .arrdash-tab.is-active {
+            border-bottom-color: var(--arr-accent);
+            color: var(--arr-accent);
+        }
+
+        .arrdash-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75em;
+            margin-bottom: 1em;
+        }
+
+        .arrdash-search,
+        .arrdash-select {
+            background: var(--arr-panel);
+            border: 1px solid var(--arr-line);
+            border-radius: 4px;
+            color: inherit;
+            padding: 0.5em 0.7em;
+            font-size: 0.95em;
+        }
+
+        .arrdash-search { min-width: 14em; flex: 1 1 14em; }
+
+        .arrdash-check {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4em;
+            font-size: 0.9em;
+        }
+
+        .arrdash-segmented {
+            display: inline-flex;
+            border: 1px solid var(--arr-line);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .arrdash-segmented button {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 0.9em;
+            padding: 0.5em 0.9em;
+        }
+
+        .arrdash-segmented button.is-active {
+            background: var(--arr-accent);
+            color: #fff;
+        }
+
+        .arrdash-daygroup { margin-bottom: 1.4em; }
+
+        .arrdash-dayhead {
+            border-bottom: 1px solid var(--arr-line);
+            font-size: 0.95em;
+            font-weight: 600;
+            margin-bottom: 0.5em;
+            padding-bottom: 0.3em;
+        }
+
+        .arrdash-dayhead.is-today { color: var(--arr-accent); }
+
+        .arrdash-row {
+            display: flex;
+            align-items: center;
+            gap: 0.9em;
+            padding: 0.5em 0.6em;
+            border-radius: 5px;
+        }
+
+        .arrdash-row:hover { background: var(--arr-panel); }
+
+        .arrdash-poster {
+            width: 2.6em;
+            height: 3.9em;
+            object-fit: cover;
+            border-radius: 3px;
+            background: var(--arr-panel);
+            flex: none;
+        }
+
+        .arrdash-row-main { flex: 1 1 auto; min-width: 0; }
+
+        .arrdash-row-title {
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .arrdash-row-sub {
+            font-size: 0.85em;
+            opacity: 0.75;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .arrdash-row-side {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            flex: none;
+        }
+
+        .arrdash-badge {
+            border-radius: 3px;
+            font-size: 0.72em;
+            padding: 0.22em 0.5em;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
+            border: 1px solid var(--arr-line);
+        }
+
+        .arrdash-badge.is-ok { background: rgba(76, 175, 80, 0.18); border-color: rgba(76, 175, 80, 0.5); }
+
+        .arrdash-badge.is-warn { background: rgba(255, 167, 38, 0.18); border-color: rgba(255, 167, 38, 0.5); }
+
+        .arrdash-badge.is-bad { background: rgba(239, 83, 80, 0.18); border-color: rgba(239, 83, 80, 0.5); }
+
+        .arrdash-badge.is-info { background: rgba(0, 164, 220, 0.18); border-color: rgba(0, 164, 220, 0.5); }
+
+        .arrdash-time { font-size: 0.85em; opacity: 0.75; white-space: nowrap; }
+
+        .arrdash-month {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 1px;
+            background: var(--arr-line);
+            border: 1px solid var(--arr-line);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .arrdash-month-head {
+            background: var(--arr-panel);
+            font-size: 0.78em;
+            font-weight: 600;
+            padding: 0.5em;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .arrdash-cell {
+            background: transparent;
+            min-height: 6.5em;
+            padding: 0.4em;
+        }
+
+        .arrdash-cell.is-outside { opacity: 0.35; }
+
+        .arrdash-cell.is-today { box-shadow: inset 0 0 0 2px var(--arr-accent); }
+
+        .arrdash-cell-date { font-size: 0.8em; opacity: 0.8; margin-bottom: 0.3em; }
+
+        .arrdash-pill {
+            border-left: 3px solid var(--arr-accent);
+            background: var(--arr-panel);
+            border-radius: 0 3px 3px 0;
+            font-size: 0.75em;
+            line-height: 1.25;
+            margin-bottom: 0.22em;
+            overflow: hidden;
+            padding: 0.2em 0.35em;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .arrdash-pill.is-have { border-left-color: var(--arr-ok); }
+
+        .arrdash-pill.is-downloading { border-left-color: var(--arr-warn); }
+
+        .arrdash-pill.is-movie { border-left-color: #ab47bc; }
+
+        .arrdash-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(10.5em, 1fr));
+            gap: 1em;
+        }
+
+        .arrdash-card { position: relative; }
+
+        .arrdash-card-poster {
+            width: 100%;
+            aspect-ratio: 2 / 3;
+            object-fit: cover;
+            border-radius: 5px;
+            background: var(--arr-panel);
+            display: block;
+        }
+
+        .arrdash-card-title {
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-top: 0.45em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .arrdash-card-sub { font-size: 0.8em; opacity: 0.7; }
+
+        .arrdash-card-badges {
+            position: absolute;
+            top: 0.4em;
+            left: 0.4em;
+            right: 0.4em;
+            display: flex;
+            justify-content: space-between;
+            gap: 0.3em;
+        }
+
+        .arrdash-progress {
+            background: rgba(127, 127, 127, 0.25);
+            border-radius: 2px;
+            height: 4px;
+            margin-top: 0.35em;
+            overflow: hidden;
+        }
+
+        .arrdash-progress span {
+            background: var(--arr-accent);
+            display: block;
+            height: 100%;
+        }
+
+        .arrdash-progress.is-complete span { background: var(--arr-ok); }
+
+        .arrdash-queue-progress {
+            background: rgba(127, 127, 127, 0.25);
+            border-radius: 3px;
+            height: 6px;
+            margin-top: 0.4em;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .arrdash-queue-progress span {
+            background: var(--arr-accent);
+            display: block;
+            height: 100%;
+        }
+
+        .arrdash-empty {
+            opacity: 0.65;
+            padding: 2.5em 1em;
+            text-align: center;
+        }
+
+        .arrdash-linkbtn {
+            background: none;
+            border: 1px solid var(--arr-line);
+            border-radius: 4px;
+            color: inherit;
+            cursor: pointer;
+            font-size: 0.8em;
+            padding: 0.3em 0.6em;
+        }
+
+        .arrdash-linkbtn:hover { border-color: var(--arr-accent); color: var(--arr-accent); }
+
+        .arrdash-section-title {
+            font-size: 1.05em;
+            font-weight: 600;
+            margin: 1.4em 0 0.6em;
+        }
+
+        .arrdash-section-title:first-child { margin-top: 0; }
+    </style>
+
+    <script type="text/javascript">
+        (function () {
+            var page = document.querySelector('#ArrDashboardPage');
+
+            var state = {
+                loaded: false,
+                isAdmin: false,
+                tab: 'calendar',
+                calendarMode: 'agenda',
+                calendarPast: 7,
+                calendarFuture: 28,
+                hideHave: false,
+                data: {},
+                timer: null
+            };
+
+            // ---------------------------------------------------------- utils
+
+            function esc(value) {
+                return String(value === null || value === undefined ? '' : value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function api(path, params) {
+                return ApiClient.getJSON(ApiClient.getUrl(path, params || {}));
+            }
+
+            function imageUrl(relative) {
+                if (!relative) {
+                    return null;
+                }
+
+                var token = ApiClient.accessToken ? ApiClient.accessToken() : null;
+                var url = ApiClient.getUrl(relative);
+                return token ? url + '&ApiKey=' + encodeURIComponent(token) : url;
+            }
+
+            function posterHtml(relative, className) {
+                var url = imageUrl(relative);
+                if (!url) {
+                    return '<div class="' + className + '"></div>';
+                }
+
+                return '<img class="' + className + '" loading="lazy" src="' + esc(url) + '" alt="" />';
+            }
+
+            function bytes(value) {
+                if (!value) {
+                    return '0 B';
+                }
+
+                var units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+                var index = 0;
+                var size = value;
+                while (size >= 1024 && index < units.length - 1) {
+                    size /= 1024;
+                    index++;
+                }
+
+                return (size >= 100 || index === 0 ? Math.round(size) : size.toFixed(1)) + ' ' + units[index];
+            }
+
+            function parseDate(value) {
+                if (!value) {
+                    return null;
+                }
+
+                // The server hands back UTC; some fields omit the zone marker.
+                var text = /Z$|[+-]\d{2}:?\d{2}$/.test(value) ? value : value + 'Z';
+                var date = new Date(text);
+                return isNaN(date.getTime()) ? null : date;
+            }
+
+            function dayKey(date) {
+                return date.getFullYear() + '-'
+                    + String(date.getMonth() + 1).padStart(2, '0') + '-'
+                    + String(date.getDate()).padStart(2, '0');
+            }
+
+            function formatDay(date) {
+                var today = new Date();
+                var tomorrow = new Date();
+                tomorrow.setDate(today.getDate() + 1);
+                var yesterday = new Date();
+                yesterday.setDate(today.getDate() - 1);
+
+                if (dayKey(date) === dayKey(today)) {
+                    return 'Today';
+                }
+
+                if (dayKey(date) === dayKey(tomorrow)) {
+                    return 'Tomorrow';
+                }
+
+                if (dayKey(date) === dayKey(yesterday)) {
+                    return 'Yesterday';
+                }
+
+                return date.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long'
+                });
+            }
+
+            function formatTime(date) {
+                return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            }
+
+            function formatDateShort(value) {
+                var date = parseDate(value);
+                if (!date) {
+                    return '';
+                }
+
+                return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+            }
+
+            function relativeTime(value) {
+                var date = parseDate(value);
+                if (!date) {
+                    return '';
+                }
+
+                var diff = Date.now() - date.getTime();
+                var minutes = Math.round(Math.abs(diff) / 60000);
+                var suffix = diff >= 0 ? ' ago' : ' from now';
+
+                if (minutes < 1) {
+                    return 'just now';
+                }
+
+                if (minutes < 60) {
+                    return minutes + 'm' + suffix;
+                }
+
+                var hours = Math.round(minutes / 60);
+                if (hours < 24) {
+                    return hours + 'h' + suffix;
+                }
+
+                var days = Math.round(hours / 24);
+                if (days < 30) {
+                    return days + 'd' + suffix;
+                }
+
+                return formatDateShort(value);
+            }
+
+            function empty(message) {
+                return '<div class="arrdash-empty">' + esc(message) + '</div>';
+            }
+
+            function spinner() {
+                return '<div class="arrdash-empty">Loading...</div>';
+            }
+
+            // --------------------------------------------------------- header
+
+            function renderStatus(statuses) {
+                var html = (statuses || []).map(function (s) {
+                    var title = s.Online
+                        ? s.Name + ' ' + (s.Version || '') + ' (' + s.ResponseMs + ' ms)'
+                        : (s.Error || 'Offline');
+
+                    return '<span class="arrdash-chip" title="' + esc(title) + '">'
+                        + '<span class="arrdash-dot' + (s.Online ? ' is-online' : '') + '"></span>'
+                        + esc(s.Name) + '</span>';
+                }).join('');
+
+                if (!html) {
+                    html = '<span class="arrdash-chip">No Sonarr or Radarr instances configured yet</span>';
+                }
+
+                page.querySelector('#arrStatus').innerHTML = html;
+            }
+
+            function renderErrors(errors) {
+                var container = page.querySelector('#arrErrors');
+                if (!errors || !errors.length) {
+                    container.innerHTML = '';
+                    return;
+                }
+
+                container.innerHTML = errors.map(function (e) {
+                    return '<div class="arrdash-error"><strong>' + esc(e.Name) + '</strong>: ' + esc(e.Message) + '</div>';
+                }).join('');
+            }
+
+            function statTile(value, label) {
+                return '<div class="arrdash-stat"><div class="arrdash-stat-value">' + esc(value) + '</div>'
+                    + '<div class="arrdash-stat-label">' + esc(label) + '</div></div>';
+            }
+
+            function renderSummary(summary) {
+                var tiles = [
+                    statTile(summary.SeriesTotal, 'Series'),
+                    statTile(summary.EpisodesMissing, 'Episodes missing'),
+                    statTile(summary.MoviesTotal, 'Movies'),
+                    statTile(summary.MoviesMissing, 'Movies missing'),
+                    statTile(summary.QueueCount, 'In queue'),
+                    statTile(bytes(summary.SeriesSizeOnDisk + summary.MoviesSizeOnDisk), 'On disk')
+                ];
+
+                if (summary.QueueWarnings) {
+                    tiles.push(statTile(summary.QueueWarnings, 'Queue warnings'));
+                }
+
+                page.querySelector('#arrStats').innerHTML = tiles.join('');
+                renderErrors(summary.Errors);
+            }
+
+            // ------------------------------------------------------- calendar
+
+            function eventBadge(item) {
+                if (item.Kind === 'radarr') {
+                    var labels = { cinemas: 'In cinemas', digital: 'Digital', physical: 'Physical' };
+                    return '<span class="arrdash-badge is-info">' + esc(labels[item.EventType] || 'Release') + '</span>';
+                }
+
+                return '';
+            }
+
+            function stateBadge(item) {
+                if (item.HasFile) {
+                    return '<span class="arrdash-badge is-ok">Downloaded</span>';
+                }
+
+                if (item.Downloading) {
+                    return '<span class="arrdash-badge is-warn">Downloading</span>';
+                }
+
+                if (!item.Monitored) {
+                    return '<span class="arrdash-badge">Unmonitored</span>';
+                }
+
+                var airs = parseDate(item.AirDateUtc);
+                if (airs && airs.getTime() < Date.now()) {
+                    return '<span class="arrdash-badge is-bad">Missing</span>';
+                }
+
+                return '';
+            }
+
+            function calendarItems() {
+                var items = (state.data.calendar && state.data.calendar.Items) || [];
+                if (state.hideHave) {
+                    items = items.filter(function (i) { return !i.HasFile; });
+                }
+
+                return items;
+            }
+
+            function renderAgenda(items) {
+                if (!items.length) {
+                    return empty('Nothing scheduled in this window.');
+                }
+
+                var groups = {};
+                var order = [];
+
+                items.forEach(function (item) {
+                    var date = parseDate(item.AirDateUtc);
+                    if (!date) {
+                        return;
+                    }
+
+                    var key = dayKey(date);
+                    if (!groups[key]) {
+                        groups[key] = { date: date, items: [] };
+                        order.push(key);
+                    }
+
+                    groups[key].items.push(item);
+                });
+
+                var todayKey = dayKey(new Date());
+
+                return order.map(function (key) {
+                    var group = groups[key];
+                    var rows = group.items.map(function (item) {
+                        var date = parseDate(item.AirDateUtc);
+                        var sub = item.Kind === 'sonarr'
+                            ? [item.EpisodeCode, item.SubTitle].filter(Boolean).join(' - ')
+                            : [item.SubTitle, item.Network].filter(Boolean).join(' - ');
+
+                        return '<div class="arrdash-row">'
+                            + posterHtml(item.PosterUrl, 'arrdash-poster')
+                            + '<div class="arrdash-row-main">'
+                            + '<div class="arrdash-row-title">' + esc(item.Title) + '</div>'
+                            + '<div class="arrdash-row-sub">' + esc(sub) + '</div>'
+                            + '</div>'
+                            + '<div class="arrdash-row-side">'
+                            + eventBadge(item)
+                            + stateBadge(item)
+                            + '<span class="arrdash-time">' + esc(item.Kind === 'sonarr' ? formatTime(date) : '') + '</span>'
+                            + '</div></div>';
+                    }).join('');
+
+                    return '<div class="arrdash-daygroup">'
+                        + '<div class="arrdash-dayhead' + (key === todayKey ? ' is-today' : '') + '">'
+                        + esc(formatDay(group.date)) + '</div>'
+                        + rows + '</div>';
+                }).join('');
+            }
+
+            function renderMonth(items) {
+                var byDay = {};
+                items.forEach(function (item) {
+                    var date = parseDate(item.AirDateUtc);
+                    if (!date) {
+                        return;
+                    }
+
+                    var key = dayKey(date);
+                    (byDay[key] = byDay[key] || []).push(item);
+                });
+
+                var today = new Date();
+                var first = new Date(today.getFullYear(), today.getMonth(), 1);
+
+                // Monday-first grid covering the whole month.
+                var offset = (first.getDay() + 6) % 7;
+                var cursor = new Date(first);
+                cursor.setDate(1 - offset);
+
+                var names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                var html = names.map(function (n) {
+                    return '<div class="arrdash-month-head">' + n + '</div>';
+                }).join('');
+
+                var todayKey = dayKey(today);
+
+                for (var cell = 0; cell < 42; cell++) {
+                    var key = dayKey(cursor);
+                    var outside = cursor.getMonth() !== today.getMonth();
+                    var dayItems = byDay[key] || [];
+
+                    var pills = dayItems.slice(0, 4).map(function (item) {
+                        var cls = 'arrdash-pill';
+                        if (item.Kind === 'radarr') {
+                            cls += ' is-movie';
+                        } else if (item.HasFile) {
+                            cls += ' is-have';
+                        } else if (item.Downloading) {
+                            cls += ' is-downloading';
+                        }
+
+                        var label = item.Kind === 'sonarr'
+                            ? item.Title + ' ' + (item.EpisodeCode || '')
+                            : item.Title;
+
+                        return '<div class="' + cls + '" title="' + esc(label) + '">' + esc(label) + '</div>';
+                    }).join('');
+
+                    var more = dayItems.length > 4
+                        ? '<div class="arrdash-pill">+' + (dayItems.length - 4) + ' more</div>'
+                        : '';
+
+                    html += '<div class="arrdash-cell' + (outside ? ' is-outside' : '')
+                        + (key === todayKey ? ' is-today' : '') + '">'
+                        + '<div class="arrdash-cell-date">' + cursor.getDate() + '</div>'
+                        + pills + more + '</div>';
+
+                    cursor.setDate(cursor.getDate() + 1);
+                }
+
+                return '<div class="arrdash-month">' + html + '</div>';
+            }
+
+            function renderCalendar() {
+                var body = page.querySelector('#arrCalendarBody');
+                if (!state.data.calendar) {
+                    body.innerHTML = spinner();
+                    return;
+                }
+
+                var items = calendarItems();
+                body.innerHTML = state.calendarMode === 'month' ? renderMonth(items) : renderAgenda(items);
+            }
+
+            // ---------------------------------------------------------- shows
+
+            function seriesStatusBadge(series) {
+                if (!series.Monitored) {
+                    return '<span class="arrdash-badge">Unmonitored</span>';
+                }
+
+                if (series.MissingEpisodeCount > 0) {
+                    return '<span class="arrdash-badge is-warn">' + series.MissingEpisodeCount + ' missing</span>';
+                }
+
+                return '<span class="arrdash-badge is-ok">Complete</span>';
+            }
+
+            function renderShows() {
+                var body = page.querySelector('#arrShowsBody');
+                if (!state.data.series) {
+                    body.innerHTML = spinner();
+                    return;
+                }
+
+                var query = page.querySelector('#arrShowSearch').value.trim().toLowerCase();
+                var filter = page.querySelector('#arrShowFilter').value;
+                var sort = page.querySelector('#arrShowSort').value;
+
+                var items = state.data.series.Items.filter(function (s) {
+                    if (query && s.Title.toLowerCase().indexOf(query) === -1) {
+                        return false;
+                    }
+
+                    switch (filter) {
+                        case 'incomplete': return s.MissingEpisodeCount > 0;
+                        case 'continuing': return (s.Status || '').toLowerCase() === 'continuing';
+                        case 'ended': return (s.Status || '').toLowerCase() === 'ended';
+                        case 'unmonitored': return !s.Monitored;
+                        default: return true;
+                    }
+                });
+
+                items.sort(function (a, b) {
+                    switch (sort) {
+                        case 'missing': return b.MissingEpisodeCount - a.MissingEpisodeCount;
+                        case 'next':
+                            return (parseDate(a.NextAiring) || Infinity) - (parseDate(b.NextAiring) || Infinity);
+                        case 'added':
+                            return (parseDate(b.Added) || 0) - (parseDate(a.Added) || 0);
+                        case 'size': return b.SizeOnDisk - a.SizeOnDisk;
+                        default:
+                            return (a.SortTitle || a.Title).localeCompare(b.SortTitle || b.Title);
+                    }
+                });
+
+                if (!items.length) {
+                    body.innerHTML = empty('No series match that filter.');
+                    return;
+                }
+
+                body.innerHTML = '<div class="arrdash-grid">' + items.map(function (s) {
+                    var percent = s.EpisodeCount ? Math.round(s.EpisodeFileCount / s.EpisodeCount * 100) : 0;
+                    var next = s.NextAiring
+                        ? 'Next ' + relativeTime(s.NextAiring)
+                        : (s.Status || '');
+
+                    return '<div class="arrdash-card" data-series-id="' + s.Id + '" '
+                        + 'data-instance="' + esc(s.InstanceId) + '">'
+                        + posterHtml(s.PosterUrl, 'arrdash-card-poster')
+                        + '<div class="arrdash-card-badges">' + seriesStatusBadge(s) + '</div>'
+                        + '<div class="arrdash-progress' + (percent >= 100 ? ' is-complete' : '') + '">'
+                        + '<span style="width:' + percent + '%"></span></div>'
+                        + '<div class="arrdash-card-title" title="' + esc(s.Title) + '">' + esc(s.Title) + '</div>'
+                        + '<div class="arrdash-card-sub">' + s.EpisodeFileCount + '/' + s.EpisodeCount
+                        + ' &middot; ' + esc(bytes(s.SizeOnDisk)) + '</div>'
+                        + '<div class="arrdash-card-sub">' + esc(next) + '</div>'
+                        + (state.isAdmin && s.MissingEpisodeCount > 0
+                            ? '<button type="button" class="arrdash-linkbtn arrSearchSeries" '
+                                + 'style="margin-top:0.35em">Search missing</button>'
+                            : '')
+                        + '</div>';
+                }).join('') + '</div>';
+            }
+
+            // --------------------------------------------------------- movies
+
+            function movieStatusBadge(movie) {
+                if (movie.HasFile) {
+                    return '<span class="arrdash-badge is-ok">Downloaded</span>';
+                }
+
+                if (!movie.Monitored) {
+                    return '<span class="arrdash-badge">Unmonitored</span>';
+                }
+
+                if (!movie.IsAvailable) {
+                    return '<span class="arrdash-badge is-info">Unreleased</span>';
+                }
+
+                return '<span class="arrdash-badge is-bad">Missing</span>';
+            }
+
+            function renderMovies() {
+                var body = page.querySelector('#arrMoviesBody');
+                if (!state.data.movies) {
+                    body.innerHTML = spinner();
+                    return;
+                }
+
+                var query = page.querySelector('#arrMovieSearch').value.trim().toLowerCase();
+                var filter = page.querySelector('#arrMovieFilter').value;
+                var sort = page.querySelector('#arrMovieSort').value;
+
+                var items = state.data.movies.Items.filter(function (m) {
+                    if (query && m.Title.toLowerCase().indexOf(query) === -1) {
+                        return false;
+                    }
+
+                    switch (filter) {
+                        case 'missing': return m.Monitored && !m.HasFile && m.IsAvailable;
+                        case 'downloaded': return m.HasFile;
+                        case 'unreleased': return !m.IsAvailable;
+                        case 'unmonitored': return !m.Monitored;
+                        default: return true;
+                    }
+                });
+
+                function releaseDate(m) {
+                    return parseDate(m.DigitalRelease) || parseDate(m.PhysicalRelease) || parseDate(m.InCinemas) || 0;
+                }
+
+                items.sort(function (a, b) {
+                    switch (sort) {
+                        case 'added': return (parseDate(b.Added) || 0) - (parseDate(a.Added) || 0);
+                        case 'release': return releaseDate(b) - releaseDate(a);
+                        case 'size': return b.SizeOnDisk - a.SizeOnDisk;
+                        default:
+                            return (a.SortTitle || a.Title).localeCompare(b.SortTitle || b.Title);
+                    }
+                });
+
+                if (!items.length) {
+                    body.innerHTML = empty('No movies match that filter.');
+                    return;
+                }
+
+                body.innerHTML = '<div class="arrdash-grid">' + items.map(function (m) {
+                    var sub = m.HasFile
+                        ? [m.Quality, bytes(m.SizeOnDisk)].filter(Boolean).join(' &middot; ')
+                        : formatDateShort(m.DigitalRelease || m.PhysicalRelease || m.InCinemas);
+
+                    return '<div class="arrdash-card" data-movie-id="' + m.Id + '" '
+                        + 'data-instance="' + esc(m.InstanceId) + '">'
+                        + posterHtml(m.PosterUrl, 'arrdash-card-poster')
+                        + '<div class="arrdash-card-badges">' + movieStatusBadge(m) + '</div>'
+                        + '<div class="arrdash-card-title" title="' + esc(m.Title) + '">' + esc(m.Title) + '</div>'
+                        + '<div class="arrdash-card-sub">' + (m.Year || '') + '</div>'
+                        + '<div class="arrdash-card-sub">' + sub + '</div>'
+                        + (state.isAdmin && !m.HasFile && m.Monitored
+                            ? '<button type="button" class="arrdash-linkbtn arrSearchMovie" '
+                                + 'style="margin-top:0.35em">Search</button>'
+                            : '')
+                        + '</div>';
+                }).join('') + '</div>';
+            }
+
+            // ------------------------------------------------------- activity
+
+            function queueBadge(item) {
+                var status = (item.TrackedDownloadStatus || '').toLowerCase();
+                if (status === 'error' || item.ErrorMessage) {
+                    return '<span class="arrdash-badge is-bad">Error</span>';
+                }
+
+                if (status === 'warning' || (item.Warnings && item.Warnings.length)) {
+                    return '<span class="arrdash-badge is-warn">Warning</span>';
+                }
+
+                var phase = (item.TrackedDownloadState || item.Status || '').toLowerCase();
+                if (phase.indexOf('import') !== -1) {
+                    return '<span class="arrdash-badge is-info">Importing</span>';
+                }
+
+                if (phase === 'paused') {
+                    return '<span class="arrdash-badge">Paused</span>';
+                }
+
+                return '<span class="arrdash-badge is-info">' + esc(item.Status || 'Queued') + '</span>';
+            }
+
+            function renderQueue() {
+                var body = page.querySelector('#arrQueueBody');
+                if (!state.data.queue) {
+                    body.innerHTML = spinner();
+                    return;
+                }
+
+                var items = state.data.queue.Items;
+                if (!items.length) {
+                    body.innerHTML = empty('Nothing is downloading right now.');
+                    return;
+                }
+
+                body.innerHTML = items.map(function (item) {
+                    var detail = [
+                        item.Quality,
+                        item.Protocol,
+                        item.DownloadClient,
+                        item.Indexer
+                    ].filter(Boolean).join(' &middot; ');
+
+                    var remaining = item.TimeLeft
+                        ? item.TimeLeft + ' left'
+                        : (item.EstimatedCompletionTime ? 'done ' + relativeTime(item.EstimatedCompletionTime) : '');
+
+                    var problem = item.ErrorMessage
+                        || (item.Warnings && item.Warnings.length ? item.Warnings[0] : '');
+
+                    return '<div class="arrdash-row" data-queue-id="' + item.Id + '" '
+                        + 'data-instance="' + esc(item.InstanceId) + '" data-kind="' + esc(item.Kind) + '">'
+                        + posterHtml(item.PosterUrl, 'arrdash-poster')
+                        + '<div class="arrdash-row-main">'
+                        + '<div class="arrdash-row-title">' + esc(item.Title)
+                        + (item.SubTitle ? ' <span style="opacity:.7;font-weight:400">' + esc(item.SubTitle) + '</span>' : '')
+                        + '</div>'
+                        + '<div class="arrdash-row-sub">' + detail
+                        + (problem ? ' &middot; <span style="color:var(--arr-bad)">' + esc(problem) + '</span>' : '')
+                        + '</div>'
+                        + '<div class="arrdash-queue-progress"><span style="width:' + item.Progress + '%"></span></div>'
+                        + '</div>'
+                        + '<div class="arrdash-row-side">'
+                        + '<span class="arrdash-time">' + item.Progress.toFixed(1) + '%<br />'
+                        + esc(bytes(item.Size - item.SizeLeft)) + ' / ' + esc(bytes(item.Size)) + '</span>'
+                        + '<span class="arrdash-time">' + esc(remaining) + '</span>'
+                        + queueBadge(item)
+                        + (state.isAdmin
+                            ? '<button type="button" class="arrdash-linkbtn arrQueueRemove">Remove</button>'
+                            : '')
+                        + '</div></div>';
+                }).join('');
+            }
+
+            // -------------------------------------------------------- missing
+
+            function renderMissing() {
+                var body = page.querySelector('#arrMissingBody');
+                if (!state.data.missing) {
+                    body.innerHTML = spinner();
+                    return;
+                }
+
+                var items = state.data.missing.Items;
+                if (!items.length) {
+                    body.innerHTML = empty('Nothing monitored is missing. Good work.');
+                    return;
+                }
+
+                body.innerHTML = items.map(function (item) {
+                    var sub = [item.EpisodeCode, item.SubTitle].filter(Boolean).join(' - ');
+
+                    return '<div class="arrdash-row" data-instance="' + esc(item.InstanceId) + '" '
+                        + 'data-kind="' + esc(item.Kind) + '" data-parent-id="' + item.ParentId + '" '
+                        + 'data-item-id="' + item.Id + '">'
+                        + posterHtml(item.PosterUrl, 'arrdash-poster')
+                        + '<div class="arrdash-row-main">'
+                        + '<div class="arrdash-row-title">' + esc(item.Title) + '</div>'
+                        + '<div class="arrdash-row-sub">' + esc(sub) + '</div>'
+                        + '</div>'
+                        + '<div class="arrdash-row-side">'
+                        + '<span class="arrdash-time">' + esc(formatDateShort(item.ReleaseDate)) + '</span>'
+                        + (state.isAdmin
+                            ? '<button type="button" class="arrdash-linkbtn arrSearchMissing">Search</button>'
+                            : '')
+                        + '</div></div>';
+                }).join('');
+            }
+
+            // -------------------------------------------------------- history
+
+            function historyBadge(eventType) {
+                var type = (eventType || '').toLowerCase();
+                if (type.indexOf('imported') !== -1) {
+                    return '<span class="arrdash-badge is-ok">Imported</span>';
+                }
+
+                if (type.indexOf('grabbed') !== -1) {
+                    return '<span class="arrdash-badge is-info">Grabbed</span>';
+                }
+
+                if (type.indexOf('failed') !== -1) {
+                    return '<span class="arrdash-badge is-bad">Failed</span>';
+                }
+
+                if (type.indexOf('deleted') !== -1) {
+                    return '<span class="arrdash-badge is-warn">Deleted</span>';
+                }
+
+                return '<span class="arrdash-badge">' + esc(eventType || 'Event') + '</span>';
+            }
+
+            function renderHistory() {
+                var body = page.querySelector('#arrHistoryBody');
+                if (!state.data.history) {
+                    body.innerHTML = spinner();
+                    return;
+                }
+
+                var items = state.data.history.Items;
+                if (!items.length) {
+                    body.innerHTML = empty('No recent activity.');
+                    return;
+                }
+
+                body.innerHTML = items.map(function (item) {
+                    var sub = [item.SubTitle, item.Quality].filter(Boolean).join(' - ');
+
+                    return '<div class="arrdash-row">'
+                        + posterHtml(item.PosterUrl, 'arrdash-poster')
+                        + '<div class="arrdash-row-main">'
+                        + '<div class="arrdash-row-title">' + esc(item.Title) + '</div>'
+                        + '<div class="arrdash-row-sub">' + esc(sub || item.SourceTitle || '') + '</div>'
+                        + '</div>'
+                        + '<div class="arrdash-row-side">'
+                        + historyBadge(item.EventType)
+                        + '<span class="arrdash-time">' + esc(relativeTime(item.Date)) + '</span>'
+                        + '</div></div>';
+                }).join('');
+            }
+
+            // ----------------------------------------------------------- load
+
+            function markUpdated() {
+                page.querySelector('#arrUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+            }
+
+            function loadHeader() {
+                return Promise.all([
+                    api('ArrDashboard/Status').then(renderStatus),
+                    api('ArrDashboard/Summary').then(renderSummary)
+                ]);
+            }
+
+            function loadTab(tab, force) {
+                var loaders = {
+                    calendar: function () {
+                        return api('ArrDashboard/Calendar', {
+                            daysPast: state.calendarPast,
+                            daysFuture: state.calendarFuture
+                        }).then(function (data) {
+                            state.data.calendar = data;
+                            renderErrors(data.Errors);
+                            renderCalendar();
+                        });
+                    },
+                    shows: function () {
+                        return api('ArrDashboard/Series').then(function (data) {
+                            state.data.series = data;
+                            renderShows();
+                        });
+                    },
+                    movies: function () {
+                        return api('ArrDashboard/Movies').then(function (data) {
+                            state.data.movies = data;
+                            renderMovies();
+                        });
+                    },
+                    activity: function () {
+                        return api('ArrDashboard/Queue').then(function (data) {
+                            state.data.queue = data;
+                            renderQueue();
+                        });
+                    },
+                    missing: function () {
+                        return api('ArrDashboard/Missing', { limit: 200 }).then(function (data) {
+                            state.data.missing = data;
+                            renderMissing();
+                        });
+                    },
+                    history: function () {
+                        return api('ArrDashboard/History', { limit: 100 }).then(function (data) {
+                            state.data.history = data;
+                            renderHistory();
+                        });
+                    }
+                };
+
+                var cacheKey = { calendar: 'calendar', shows: 'series', movies: 'movies', activity: 'queue',
+                    missing: 'missing', history: 'history' }[tab];
+
+                if (!force && state.data[cacheKey]) {
+                    return Promise.resolve();
+                }
+
+                return loaders[tab]().catch(function (err) {
+                    console.error('[ArrDashboard]', err);
+                    renderErrors([{ Name: 'Jellyfin', Message: 'Could not load data from the server.' }]);
+                });
+            }
+
+            function refresh(force) {
+                if (force) {
+                    state.data = {};
+                }
+
+                return Promise.all([loadHeader(), loadTab(state.tab, !!force)]).then(markUpdated);
+            }
+
+            function selectTab(tab) {
+                state.tab = tab;
+
+                Array.prototype.forEach.call(page.querySelectorAll('.arrdash-tab'), function (button) {
+                    button.classList.toggle('is-active', button.getAttribute('data-tab') === tab);
+                });
+
+                Array.prototype.forEach.call(page.querySelectorAll('.arrdash-panel'), function (panel) {
+                    panel.hidden = panel.getAttribute('data-panel') !== tab;
+                });
+
+                loadTab(tab, false);
+                scheduleAutoRefresh();
+            }
+
+            function scheduleAutoRefresh() {
+                if (state.timer) {
+                    clearInterval(state.timer);
+                    state.timer = null;
+                }
+
+                // Only the queue moves fast enough to be worth polling.
+                if (state.tab === 'activity') {
+                    state.timer = setInterval(function () {
+                        loadTab('activity', true).then(markUpdated);
+                    }, 15000);
+                }
+            }
+
+            // -------------------------------------------------------- actions
+
+            function post(path) {
+                return ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl(path),
+                    contentType: 'application/json'
+                });
+            }
+
+            function toast(message) {
+                if (window.Dashboard && Dashboard.alert) {
+                    Dashboard.alert({ message: message });
+                } else {
+                    alert(message);
+                }
+            }
+
+            page.addEventListener('click', function (e) {
+                var target = e.target;
+                if (!target.closest) {
+                    return;
+                }
+
+                var tab = target.closest('.arrdash-tab');
+                if (tab) {
+                    selectTab(tab.getAttribute('data-tab'));
+                    return;
+                }
+
+                var mode = target.closest('#arrCalendarMode button');
+                if (mode) {
+                    state.calendarMode = mode.getAttribute('data-mode');
+                    Array.prototype.forEach.call(page.querySelectorAll('#arrCalendarMode button'), function (b) {
+                        b.classList.toggle('is-active', b === mode);
+                    });
+                    renderCalendar();
+                    return;
+                }
+
+                var range = target.closest('#arrCalendarRange button');
+                if (range) {
+                    state.calendarPast = parseInt(range.getAttribute('data-past'), 10);
+                    state.calendarFuture = parseInt(range.getAttribute('data-future'), 10);
+                    Array.prototype.forEach.call(page.querySelectorAll('#arrCalendarRange button'), function (b) {
+                        b.classList.toggle('is-active', b === range);
+                    });
+                    state.data.calendar = null;
+                    loadTab('calendar', true);
+                    return;
+                }
+
+                var searchSeries = target.closest('.arrSearchSeries');
+                if (searchSeries) {
+                    var seriesCard = searchSeries.closest('[data-series-id]');
+                    post('ArrDashboard/Search/Series/' + encodeURIComponent(seriesCard.getAttribute('data-instance'))
+                        + '/' + seriesCard.getAttribute('data-series-id'))
+                        .then(function () { toast('Search started in Sonarr.'); },
+                            function () { toast('Sonarr rejected the search request.'); });
+                    return;
+                }
+
+                var searchMovie = target.closest('.arrSearchMovie');
+                if (searchMovie) {
+                    var movieCard = searchMovie.closest('[data-movie-id]');
+                    post('ArrDashboard/Search/Movie/' + encodeURIComponent(movieCard.getAttribute('data-instance'))
+                        + '/' + movieCard.getAttribute('data-movie-id'))
+                        .then(function () { toast('Search started in Radarr.'); },
+                            function () { toast('Radarr rejected the search request.'); });
+                    return;
+                }
+
+                var searchMissing = target.closest('.arrSearchMissing');
+                if (searchMissing) {
+                    var row = searchMissing.closest('[data-item-id]');
+                    var instance = encodeURIComponent(row.getAttribute('data-instance'));
+                    var request = row.getAttribute('data-kind') === 'radarr'
+                        ? post('ArrDashboard/Search/Movie/' + instance + '/' + row.getAttribute('data-item-id'))
+                        : ApiClient.ajax({
+                            type: 'POST',
+                            url: ApiClient.getUrl('ArrDashboard/Search/Episodes/' + instance),
+                            contentType: 'application/json',
+                            data: JSON.stringify([parseInt(row.getAttribute('data-item-id'), 10)])
+                        });
+
+                    request.then(function () { toast('Search started.'); },
+                        function () { toast('The search request was rejected.'); });
+                    return;
+                }
+
+                var remove = target.closest('.arrQueueRemove');
+                if (remove) {
+                    var queueRow = remove.closest('[data-queue-id]');
+                    if (!confirm('Remove this download and tell the download client to drop it?')) {
+                        return;
+                    }
+
+                    ApiClient.ajax({
+                        type: 'DELETE',
+                        url: ApiClient.getUrl('ArrDashboard/Queue/'
+                            + encodeURIComponent(queueRow.getAttribute('data-kind')) + '/'
+                            + encodeURIComponent(queueRow.getAttribute('data-instance')) + '/'
+                            + queueRow.getAttribute('data-queue-id'),
+                            { removeFromClient: true, blocklist: false })
+                    }).then(function () {
+                        loadTab('activity', true);
+                    }, function () {
+                        toast('Could not remove that item.');
+                    });
+                }
+            });
+
+            page.querySelector('#arrRefresh').addEventListener('click', function () {
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('ArrDashboard/Refresh') })
+                    .then(function () { refresh(true); }, function () { refresh(true); });
+            });
+
+            page.querySelector('#arrCalendarHideHave').addEventListener('change', function (e) {
+                state.hideHave = e.target.checked;
+                renderCalendar();
+            });
+
+            ['#arrShowSearch', '#arrShowFilter', '#arrShowSort'].forEach(function (selector) {
+                page.querySelector(selector).addEventListener('input', renderShows);
+                page.querySelector(selector).addEventListener('change', renderShows);
+            });
+
+            ['#arrMovieSearch', '#arrMovieFilter', '#arrMovieSort'].forEach(function (selector) {
+                page.querySelector(selector).addEventListener('input', renderMovies);
+                page.querySelector(selector).addEventListener('change', renderMovies);
+            });
+
+            page.addEventListener('viewshow', function () {
+                ApiClient.getCurrentUser().then(function (user) {
+                    state.isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator);
+                }).catch(function () {
+                    state.isAdmin = false;
+                }).then(function () {
+                    refresh(!state.loaded);
+                    state.loaded = true;
+                    scheduleAutoRefresh();
+                });
+            });
+
+            page.addEventListener('viewhide', function () {
+                if (state.timer) {
+                    clearInterval(state.timer);
+                    state.timer = null;
+                }
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Arr Dashboard</title>
+</head>
+<body>
+<div id="ArrDashboardConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+     data-require="emby-input,emby-button,emby-checkbox,emby-select">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="ArrDashboardConfigForm">
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Sonarr</h2>
+                    <p class="fieldDescription">
+                        Add one entry per Sonarr server. The API key is in Sonarr under
+                        Settings &rarr; General &rarr; Security.
+                    </p>
+                    <div id="sonarrList" class="arrInstanceList"></div>
+                    <button is="emby-button" type="button" class="raised block" id="addSonarr">
+                        <span>Add Sonarr instance</span>
+                    </button>
+                </div>
+
+                <br />
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Radarr</h2>
+                    <p class="fieldDescription">
+                        Add one entry per Radarr server.
+                    </p>
+                    <div id="radarrList" class="arrInstanceList"></div>
+                    <button is="emby-button" type="button" class="raised block" id="addRadarr">
+                        <span>Add Radarr instance</span>
+                    </button>
+                </div>
+
+                <br />
+
+                <div class="verticalSection">
+                    <h2 class="sectionTitle">Behaviour</h2>
+
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="cacheSeconds" min="0" max="600" step="5"
+                               label="Cache responses for (seconds)" />
+                        <div class="fieldDescription">
+                            How long results are reused before Sonarr/Radarr are queried again. 0 disables caching.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="requestTimeoutSeconds" min="3" max="120" step="1"
+                               label="Request timeout (seconds)" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="calendarDaysPast" min="0" max="365" step="1"
+                               label="Calendar days in the past" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="calendarDaysFuture" min="1" max="365" step="1"
+                               label="Calendar days in the future" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <input is="emby-input" type="number" id="maxRecordsPerInstance" min="10" max="1000" step="10"
+                               label="Maximum rows per instance" />
+                        <div class="fieldDescription">
+                            Caps how many queue, history and missing rows are pulled from each server.
+                        </div>
+                    </div>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="includeUnmonitored" />
+                        <span>Include unmonitored items on the calendar</span>
+                    </label>
+
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="allowNonAdminAccess" />
+                        <span>Let non-administrators open the dashboard</span>
+                    </label>
+                    <div class="fieldDescription">
+                        Searching and removing downloads always requires an administrator, whatever this is set to.
+                    </div>
+                </div>
+
+                <br />
+
+                <div>
+                    <button is="emby-button" type="submit" class="raised button-submit block">
+                        <span>Save</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        .arrInstanceRow {
+            border: 1px solid rgba(127, 127, 127, 0.35);
+            border-radius: 6px;
+            padding: 1em;
+            margin-bottom: 1em;
+        }
+
+        .arrInstanceRow .arrRowHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1em;
+            margin-bottom: 0.5em;
+        }
+
+        .arrInstanceRow .arrRowHeader h3 {
+            margin: 0;
+        }
+
+        .arrInstanceRow .arrRowActions {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+
+        .arrTestResult {
+            margin-top: 0.5em;
+            font-size: 0.9em;
+            min-height: 1.2em;
+        }
+
+        .arrTestOk { color: #4caf50; }
+
+        .arrTestFail { color: #f44336; }
+    </style>
+
+    <script type="text/javascript">
+        (function () {
+            var pluginId = 'b9d3a0a16a7f4a6c9b208e4a2b3f1d77';
+
+            function esc(value) {
+                return String(value === null || value === undefined ? '' : value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function newId() {
+                return 'i' + Date.now().toString(16) + Math.floor(Math.random() * 65536).toString(16);
+            }
+
+            function instanceRowHtml(kind, instance) {
+                var label = kind === 'radarr' ? 'Radarr' : 'Sonarr';
+                return '<div class="arrInstanceRow" data-kind="' + kind + '" data-id="' + esc(instance.Id) + '">'
+                    + '<div class="arrRowHeader">'
+                    + '<h3>' + esc(instance.Name || label) + '</h3>'
+                    + '<div class="arrRowActions">'
+                    + '<label class="checkboxContainer" style="margin:0;">'
+                    + '<input is="emby-checkbox" type="checkbox" class="arrEnabled"'
+                    + (instance.Enabled === false ? '' : ' checked') + ' />'
+                    + '<span>Enabled</span></label>'
+                    + '<button is="emby-button" type="button" class="raised arrTest"><span>Test</span></button>'
+                    + '<button is="emby-button" type="button" class="raised arrRemove"><span>Remove</span></button>'
+                    + '</div></div>'
+                    + '<div class="inputContainer"><input is="emby-input" type="text" class="arrName" '
+                    + 'label="Name" value="' + esc(instance.Name || label) + '" /></div>'
+                    + '<div class="inputContainer"><input is="emby-input" type="text" class="arrUrl" '
+                    + 'label="URL" placeholder="http://localhost:' + (kind === 'radarr' ? '7878' : '8989') + '" '
+                    + 'value="' + esc(instance.Url) + '" /></div>'
+                    + '<div class="inputContainer"><input is="emby-input" type="password" class="arrApiKey" '
+                    + 'label="API key" value="' + esc(instance.ApiKey) + '" /></div>'
+                    + '<div class="arrTestResult"></div>'
+                    + '</div>';
+            }
+
+            function renderList(page, kind, instances) {
+                var container = page.querySelector(kind === 'radarr' ? '#radarrList' : '#sonarrList');
+                container.innerHTML = (instances || []).map(function (instance) {
+                    return instanceRowHtml(kind, instance);
+                }).join('');
+            }
+
+            function readList(page, kind) {
+                var container = page.querySelector(kind === 'radarr' ? '#radarrList' : '#sonarrList');
+                return Array.prototype.map.call(container.querySelectorAll('.arrInstanceRow'), function (row) {
+                    return {
+                        Id: row.getAttribute('data-id'),
+                        Name: row.querySelector('.arrName').value.trim(),
+                        Url: row.querySelector('.arrUrl').value.trim().replace(/\/+$/, ''),
+                        ApiKey: row.querySelector('.arrApiKey').value.trim(),
+                        Enabled: row.querySelector('.arrEnabled').checked
+                    };
+                });
+            }
+
+            function addRow(page, kind) {
+                var container = page.querySelector(kind === 'radarr' ? '#radarrList' : '#sonarrList');
+                var placeholder = document.createElement('div');
+                placeholder.innerHTML = instanceRowHtml(kind, {
+                    Id: newId(),
+                    Name: kind === 'radarr' ? 'Radarr' : 'Sonarr',
+                    Url: '',
+                    ApiKey: '',
+                    Enabled: true
+                });
+                container.appendChild(placeholder.firstChild);
+            }
+
+            function testRow(row) {
+                var result = row.querySelector('.arrTestResult');
+                result.className = 'arrTestResult';
+                result.textContent = 'Testing...';
+
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('ArrDashboard/TestConnection'),
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        Kind: row.getAttribute('data-kind'),
+                        Name: row.querySelector('.arrName').value.trim(),
+                        Url: row.querySelector('.arrUrl').value.trim(),
+                        ApiKey: row.querySelector('.arrApiKey').value.trim()
+                    }),
+                    dataType: 'json'
+                }).then(function (status) {
+                    if (status.Online) {
+                        result.className = 'arrTestResult arrTestOk';
+                        result.textContent = 'Connected. Version ' + (status.Version || 'unknown')
+                            + ' (' + status.ResponseMs + ' ms).';
+                    } else {
+                        result.className = 'arrTestResult arrTestFail';
+                        result.textContent = status.Error || 'Connection failed.';
+                    }
+                }, function () {
+                    result.className = 'arrTestResult arrTestFail';
+                    result.textContent = 'Connection test failed. Check the Jellyfin log for details.';
+                });
+            }
+
+            function load(page) {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    renderList(page, 'sonarr', config.SonarrInstances);
+                    renderList(page, 'radarr', config.RadarrInstances);
+
+                    page.querySelector('#cacheSeconds').value = config.CacheSeconds;
+                    page.querySelector('#requestTimeoutSeconds').value = config.RequestTimeoutSeconds;
+                    page.querySelector('#calendarDaysPast').value = config.CalendarDaysPast;
+                    page.querySelector('#calendarDaysFuture').value = config.CalendarDaysFuture;
+                    page.querySelector('#maxRecordsPerInstance').value = config.MaxRecordsPerInstance;
+                    page.querySelector('#includeUnmonitored').checked = !!config.IncludeUnmonitored;
+                    page.querySelector('#allowNonAdminAccess').checked = !!config.AllowNonAdminAccess;
+
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function save(page) {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    config.SonarrInstances = readList(page, 'sonarr');
+                    config.RadarrInstances = readList(page, 'radarr');
+                    config.CacheSeconds = parseInt(page.querySelector('#cacheSeconds').value, 10) || 0;
+                    config.RequestTimeoutSeconds = parseInt(page.querySelector('#requestTimeoutSeconds').value, 10) || 20;
+                    config.CalendarDaysPast = parseInt(page.querySelector('#calendarDaysPast').value, 10) || 0;
+                    config.CalendarDaysFuture = parseInt(page.querySelector('#calendarDaysFuture').value, 10) || 28;
+                    config.MaxRecordsPerInstance = parseInt(page.querySelector('#maxRecordsPerInstance').value, 10) || 200;
+                    config.IncludeUnmonitored = page.querySelector('#includeUnmonitored').checked;
+                    config.AllowNonAdminAccess = page.querySelector('#allowNonAdminAccess').checked;
+
+                    ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+            }
+
+            var page = document.querySelector('#ArrDashboardConfigPage');
+
+            page.addEventListener('viewshow', function () {
+                load(page);
+            });
+
+            page.querySelector('#addSonarr').addEventListener('click', function () {
+                addRow(page, 'sonarr');
+            });
+
+            page.querySelector('#addRadarr').addEventListener('click', function () {
+                addRow(page, 'radarr');
+            });
+
+            page.addEventListener('click', function (e) {
+                var remove = e.target.closest ? e.target.closest('.arrRemove') : null;
+                if (remove) {
+                    remove.closest('.arrInstanceRow').remove();
+                    return;
+                }
+
+                var test = e.target.closest ? e.target.closest('.arrTest') : null;
+                if (test) {
+                    testRow(test.closest('.arrInstanceRow'));
+                }
+            });
+
+            page.addEventListener('input', function (e) {
+                if (e.target.classList.contains('arrName')) {
+                    var row = e.target.closest('.arrInstanceRow');
+                    row.querySelector('h3').textContent = e.target.value
+                        || (row.getAttribute('data-kind') === 'radarr' ? 'Radarr' : 'Sonarr');
+                }
+            });
+
+            page.querySelector('#ArrDashboardConfigForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                save(page);
+                return false;
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>

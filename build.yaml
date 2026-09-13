@@ -1,0 +1,20 @@
+---
+name: "Arr Dashboard"
+guid: "b9d3a0a1-6a7f-4a6c-9b20-8e4a2b3f1d77"
+version: "1.0.0.0"
+targetAbi: "10.11.0.0"
+framework: "net9.0"
+owner: "andycowan"
+overview: "Sonarr and Radarr monitoring inside Jellyfin"
+description: >
+  Adds an Arr Dashboard page showing a release calendar, series and movie status,
+  the live download queue, missing items and recent history from one or more
+  Sonarr and Radarr instances. All API traffic is proxied server-side, so API
+  keys never reach the browser.
+category: "General"
+artifacts:
+  - "Jellyfin.Plugin.ArrDashboard.dll"
+changelog: >
+  ## 1.0.0.0
+  Initial release: Sonarr and Radarr calendar, shows, movies, queue, missing and
+  history, with multi-instance support and admin-gated search/removal.
