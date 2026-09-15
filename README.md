@@ -90,7 +90,37 @@ Then:
 dotnet publish Jellyfin.Plugin.ArrDashboard/Jellyfin.Plugin.ArrDashboard.csproj -c Release -o out
 ```
 
+## Releasing
+
+Cutting a release publishes it to the plugin repository automatically:
+
+1. Bump `version` in `build.yaml` and `<Version>`/`<AssemblyVersion>`/`<FileVersion>`
+   in the `.csproj` to match, and add a changelog entry to `build.yaml`.
+2. Commit, then tag and push:
+   ```bash
+   git tag v1.0.0.2
+   git push origin v1.0.0.2
+   ```
+3. The `Release plugin` GitHub Actions workflow builds the DLL, zips it, publishes a
+   GitHub Release with the zip attached, and updates `manifest.json` on the
+   `gh-pages` branch with the new version's checksum and download URL.
+
+The `gh-pages` branch needs **Settings → Pages → Source: Deploy from a branch →
+gh-pages** enabled once, so `manifest.json` is served at the URL above.
+
 ## Installing
+
+### Via the plugin repository (recommended)
+
+1. In Jellyfin, go to **Dashboard → Plugins → Repositories → +**.
+2. Add this repository URL:
+   ```
+   https://andycqos74.github.io/jellyfin-plugin-arrdashboard/manifest.json
+   ```
+3. Go to **Catalog**, find **Arr Dashboard** under General, and install it.
+4. Restart Jellyfin, then continue from step 4 below.
+
+### Manually
 
 1. On the Jellyfin server, create a folder `plugins/ArrDashboard_1.0.0.1/` inside the
    Jellyfin **data** directory:

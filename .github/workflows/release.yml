@@ -1,0 +1,141 @@
+name: Release plugin
+
+# Builds the plugin, publishes a GitHub Release with the zipped DLL, and
+# updates manifest.json on the gh-pages branch so the zip can be installed
+# through Dashboard > Plugins > Repositories in the Jellyfin admin GUI.
+#
+# Trigger a release by tagging a commit "vX.Y.Z.W" where X.Y.Z.W matches the
+# "version" field in build.yaml (and the <Version> in the .csproj), e.g.:
+#   git tag v1.0.0.1 && git push origin v1.0.0.1
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Read build.yaml
+        id: meta
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import yaml
+          with open("build.yaml") as f:
+              b = yaml.safe_load(f)
+          print(f"guid={b['guid']}")
+          print(f"name={b['name']}")
+          print(f"version={b['version']}")
+          print(f"artifact={b['artifacts'][0]}")
+          EOF
+
+      - name: Verify tag matches build.yaml version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$tag_version" != "${{ steps.meta.outputs.version }}" ]; then
+            echo "::error::Tag v${tag_version} does not match build.yaml version ${{ steps.meta.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Build
+        run: dotnet build --configuration Release Jellyfin.Plugin.ArrDashboard/Jellyfin.Plugin.ArrDashboard.csproj
+
+      - name: Package zip
+        id: package
+        run: |
+          artifact="${{ steps.meta.outputs.artifact }}"
+          dll_path=$(find Jellyfin.Plugin.ArrDashboard/bin/Release -name "$artifact" | head -n1)
+          if [ -z "$dll_path" ]; then
+            echo "::error::Could not find built artifact $artifact"
+            exit 1
+          fi
+          zip_name="Jellyfin.Plugin.ArrDashboard_${{ steps.meta.outputs.version }}.zip"
+          zip -j "$zip_name" "$dll_path"
+          checksum=$(md5sum "$zip_name" | cut -d' ' -f1)
+          echo "zip_name=$zip_name" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import re
+          import yaml
+          with open("build.yaml") as f:
+              b = yaml.safe_load(f)
+          version = str(b["version"])
+          text = str(b.get("changelog", "")).strip()
+          sections = {}
+          matches = list(re.finditer(r"##\s+(\S+)", text))
+          for i, m in enumerate(matches):
+              start = m.end()
+              end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+              sections[m.group(1)] = text[start:end].strip()
+          body = sections.get(version, text)
+          print("body<<CHANGELOG_EOF")
+          print(body)
+          print("CHANGELOG_EOF")
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.meta.outputs.name }} ${{ steps.meta.outputs.version }}
+          body: ${{ steps.changelog.outputs.body }}
+          files: ${{ steps.package.outputs.zip_name }}
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+          fetch-depth: 0
+        continue-on-error: true
+        id: checkout_pages
+
+      - name: Create gh-pages branch if missing
+        if: steps.checkout_pages.outcome == 'failure'
+        run: |
+          mkdir gh-pages
+          cd gh-pages
+          git init -b gh-pages
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          echo "[]" > manifest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "Initialize gh-pages branch"
+
+      - name: Update manifest.json
+        run: |
+          source_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${{ steps.package.outputs.zip_name }}"
+          python3 .github/scripts/update_manifest.py \
+            build.yaml \
+            gh-pages/manifest.json \
+            "${{ steps.package.outputs.zip_name }}" \
+            "$source_url" \
+            "${{ steps.package.outputs.checksum }}" \
+            "${{ steps.package.outputs.timestamp }}"
+
+      - name: Commit and push manifest.json
+        run: |
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "Add ${{ steps.meta.outputs.name }} ${{ steps.meta.outputs.version }} to manifest" || echo "No changes to commit"
+          git push origin gh-pages
